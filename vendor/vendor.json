@@ -1,0 +1,36 @@
+{
+	"comment": "",
+	"ignore": "",
+	"package": [
+		{
+			"path": "github.com/boltdb/bolt",
+			"revision": "51f99c862475898df9773747d3accd05a7ca33c1",
+			"revisionTime": "2015-09-21T14:14:00-06:00"
+		},
+		{
+			"path": "github.com/daviddengcn/go-colortext",
+			"revision": "3b18c8575a432453d41fdafb340099fff5bba2f7",
+			"revisionTime": "2015-07-20T05:18:42+08:00"
+		},
+		{
+			"path": "github.com/kylelemons/gousb/usb",
+			"revision": "b8ca4aadc7228a359fccd8ae4394eefcce29e7a8",
+			"revisionTime": "2014-06-19T23:14:30-07:00"
+		},
+		{
+			"path": "github.com/kylelemons/gousb/usbid",
+			"revision": "b8ca4aadc7228a359fccd8ae4394eefcce29e7a8",
+			"revisionTime": "2014-06-19T23:14:30-07:00"
+		},
+		{
+			"path": "github.com/thomasf/lg",
+			"revision": "0576d1ac259b547e3754ac03335f8b65506ef251",
+			"revisionTime": "2015-09-14T12:57:51+02:00"
+		},
+		{
+			"path": "github.com/truveris/gousb/usb",
+			"revision": "d584044721c5eb644d57c8539246e92aaf64a400",
+			"revisionTime": "2015-02-06T17:27:15-05:00"
+		}
+	]
+}
