@@ -17,7 +17,7 @@ import (
 )
 
 // devleopment mode
-const FAKE = true
+const FAKE = false
 
 var entriesBucketName = "entries"
 
