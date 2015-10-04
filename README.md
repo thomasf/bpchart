@@ -1,9 +1,15 @@
 
 # charts and web service for omron bp monitors
 
-*Very much a work in progress atm*
+*Very much a work in progress atm, just putting it in gh so I don't loose my WIP*
+
+Some screenshots using generated test data:
+
+Averaged view:
 
 ![one](https://raw.github.com/thomasf/bpchart/master/bpchart01.png)
+
+All entries view:
 
 ![two](https://raw.github.com/thomasf/bpchart/master/bpchart02.png)
 
