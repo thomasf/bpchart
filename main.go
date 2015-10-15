@@ -1,18 +1,22 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
-	"fmt"
+
 	"math/rand"
 	"net/http"
 	"runtime"
 	"sort"
+	"strconv"
+	"sync"
 	"time"
 
-	"encoding/json"
-
 	"github.com/boltdb/bolt"
+	"github.com/thomasf/bpchart/pkg/db"
 	"github.com/thomasf/bpchart/pkg/omron"
+	omronread "github.com/thomasf/bpchart/pkg/readC"
+	"github.com/thomasf/bpchart/pkg/score"
 	"github.com/thomasf/lg"
 )
 
@@ -25,26 +29,9 @@ func init() {
 	if FAKE {
 		entriesBucketName = "fakeEntries"
 	}
-
 }
 
-func entryKey(entry omron.Entry) []byte {
-	return []byte(entry.Time.UTC().Format(time.RFC3339))
-}
-func saveEntry(entry omron.Entry, b *bolt.Bucket) error {
-	encoded, err := json.Marshal(entry)
-	if err != nil {
-		return err
-	}
-	return b.Put([]byte(entryKey(entry)), encoded)
-}
-
-// EntryBucket .
-type EntryBucket struct {
-	*bolt.Bucket
-}
-
-func fakeImportFromDevice(db *bolt.DB) error {
+func fakeImportFromDevice(db *db.DB) error {
 
 	genRandomEntry := func(lastTime time.Time) omron.Entry {
 		return omron.Entry{
@@ -68,7 +55,7 @@ func fakeImportFromDevice(db *bolt.DB) error {
 
 	}
 
-	all := make([]omron.Entry, 50)
+	all := make([]omron.Entry, 500)
 	t := time.Now().Add(-300 * time.Hour * 24)
 	for i := range all {
 		if i%3 == 0 {
@@ -96,15 +83,15 @@ func fakeImportFromDevice(db *bolt.DB) error {
 		return nil
 	})
 
-	return saveEntries(db, all)
+	return db.SaveEntries(all)
 }
 
-func importFromDevice(db *bolt.DB) error {
-	if err := omron.Open(); err != nil {
+func importFromDevice(db *db.DB) error {
+	if err := omronread.Open(); err != nil {
 		return err
 	}
 	defer func() {
-		if err := omron.Close(); err != nil {
+		if err := omronread.Close(); err != nil {
 			lg.Errorln(err)
 		}
 	}()
@@ -112,7 +99,7 @@ func importFromDevice(db *bolt.DB) error {
 	var all []omron.Entry
 
 	{
-		entries, err := omron.Read(0)
+		entries, err := omronread.Read(0)
 		if err != nil {
 			return err
 		}
@@ -121,7 +108,7 @@ func importFromDevice(db *bolt.DB) error {
 	}
 
 	{
-		entries, err := omron.Read(1)
+		entries, err := omronread.Read(1)
 		if err != nil {
 			return err
 		}
@@ -132,55 +119,63 @@ func importFromDevice(db *bolt.DB) error {
 	// if err != nil {
 	// lg.Fatal(err)
 	// }
-	return saveEntries(db, all)
+	return db.SaveEntries(all)
 
 }
 
-func saveEntries(db *bolt.DB, all []omron.Entry) error {
-	return db.Update(func(tx *bolt.Tx) error {
-		b, err := tx.CreateBucketIfNotExists([]byte(entriesBucketName))
-		if err != nil {
-			return fmt.Errorf("create bucket: %s", err)
-		}
-		for _, v := range all {
-			key := entryKey(v)
-			data := b.Get(key)
-			if data == nil {
-				err := saveEntry(v, b)
-				if err != nil {
-					return err
-				}
-
-			} else {
-				lg.V(10).Infoln(key, "already exist")
-			}
-
-		}
-		return nil
-	})
-
-}
-
-func httpServer(db *bolt.DB) error {
+func httpServer(db *db.DB) error {
 
 	http.HandleFunc("/json/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-type", "application/json")
-		var entries []omron.Entry
-		err := db.View(func(tx *bolt.Tx) error {
-			b := tx.Bucket([]byte(entriesBucketName))
 
-			b.ForEach(func(k []byte, v []byte) error {
-				var entry omron.Entry
-				err := json.Unmarshal(v, &entry)
+		dtMin := time.Now().Add(-time.Hour * 24 * 7 * 4)
+		dtMax := time.Now().Add(time.Minute)
+		{
+			type stp struct {
+				t  *time.Time
+				qp string
+			}
+			for _, v := range []stp{
+				{&dtMin, "dt_min"},
+				{&dtMax, "dt_max"},
+			} {
+				ts := r.URL.Query().Get(v.qp)
+				t, err := time.Parse(time.RFC3339, ts)
 				if err != nil {
-					return err
+					t, err = time.Parse("2006-01-02", ts)
+					if err != nil {
+						continue
+					}
 				}
-				entries = append(entries, entry)
-				return nil
-			})
-			return nil
-		})
-		data, err := json.MarshalIndent(entries, "", "  ")
+				*v.t = t
+			}
+		}
+
+		avgMinutes := 10
+		if r.URL.Query().Get("avg_minutes") != "" {
+			var err error
+			avgMinutes, err = strconv.Atoi(r.URL.Query().Get("avg_minutes"))
+			if err != nil {
+				lg.Fatalln(err)
+			}
+		}
+
+		allEntries, err := db.All()
+
+		var filteredEntires []omron.Entry
+		for _, entry := range allEntries {
+			if entry.Time.After(dtMin) && entry.Time.Before(dtMax) {
+				filteredEntires = append(filteredEntires, entry)
+			}
+		}
+
+		avgEntries := omron.AvgWithinDuration(
+			filteredEntires,
+			time.Duration(avgMinutes)*time.Minute)
+
+		scoredEntries := score.All(avgEntries)
+
+		w.Header().Set("Content-type", "application/json")
+		data, err := json.MarshalIndent(scoredEntries, "", "  ")
 		if err != nil {
 			lg.Fatal(err)
 		}
@@ -206,19 +201,33 @@ func main() {
 	lg.SetSrcHighlight("libomron")
 	flag.Parse()
 
-	db, err := bolt.Open("bpchart.db", 0600, &bolt.Options{Timeout: 1 * time.Second})
+	bdb, err := bolt.Open("bpchart.db", 0600, &bolt.Options{Timeout: 1 * time.Second})
 	if err != nil {
 		lg.Fatal(err)
 	}
-	if FAKE {
-		err = fakeImportFromDevice(db)
-	} else {
-		err = importFromDevice(db)
-	}
-	if err != nil {
-		lg.Fatal(err)
-	}
+	db := &db.DB{DB: bdb, BucketName: []byte(entriesBucketName)}
 
-	lg.Fatal(httpServer(db))
+	var wg sync.WaitGroup
 
+	wg.Add(1)
+	go func() {
+		lg.Fatal(httpServer(db))
+		wg.Done()
+	}()
+
+	wg.Add(1)
+	go func() {
+
+		if FAKE {
+			err = fakeImportFromDevice(db)
+		} else {
+			err = importFromDevice(db)
+		}
+		if err != nil {
+			lg.Fatal(err)
+		}
+		wg.Done()
+	}()
+
+	wg.Wait()
 }

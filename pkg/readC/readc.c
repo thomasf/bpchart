@@ -1,4 +1,4 @@
-#include "omron.h"
+#include "readc.h"
 
 omron_device* test;
 

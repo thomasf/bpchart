@@ -1,19 +1,6 @@
 package omron
 
-// #cgo LDFLAGS: -Llibomron -lomron -lm
-// #include "omron.h"
-import "C"
-import (
-	"errors"
-	"fmt"
-	"unsafe"
-
-	"strconv"
-	"strings"
-	"time"
-
-	"github.com/thomasf/lg"
-)
+import "time"
 
 type ByTime []Entry
 
@@ -30,63 +17,40 @@ type Entry struct {
 	Bank  int       `json:"bank"`  // bank
 }
 
-func Open() error {
-	ret := C.m_open()
-	str := C.GoString(ret)
-	if str != "" {
-		return errors.New(str)
-	}
-	return nil
-}
+func AvgWithinDuration(entries []Entry, duration time.Duration) []Entry {
+	var avgEntries []Entry
 
-func Close() error {
-	ret := C.m_close()
-	str := C.GoString(ret)
-	if str != "" {
-		return errors.New(str)
-	}
-	return nil
-}
+	var prev Entry
+	var sum Entry
+	nSum := 0
 
-func Read(bank int) ([]Entry, error) {
-	counted := C.m_count(C.int(bank))
-	var entries []Entry
-	for i := 0; i < int(counted)+1; i++ {
-		ret := C.m_read(C.int(bank), C.int(i))
-		str := C.GoString(ret)
-		C.free(unsafe.Pointer(ret))
-		if str == "" {
-			fmt.Print(".")
+	for _, v := range entries {
+		if v.Time.Before(prev.Time.Add(duration)) {
+			if nSum == 0 {
+				sum.Dia = prev.Dia
+				sum.Sys = prev.Sys
+				sum.Pulse = prev.Pulse
+			}
+			sum.Time = v.Time
+			sum.Dia += v.Dia
+			sum.Sys += v.Sys
+			sum.Pulse += v.Pulse
+			nSum++
+		} else if nSum != 0 {
+			e := Entry{
+				Dia:   int(float64(sum.Dia) / float64(nSum+1)),
+				Sys:   int(float64(sum.Sys) / float64(nSum+1)),
+				Pulse: int(float64(sum.Pulse) / float64(nSum+1)),
+				Time:  sum.Time,
+			}
+			avgEntries = append(avgEntries, e)
+			nSum = 0
 		} else {
-			fmt.Print("*")
-			fields := strings.Split(str, ",")
-			t, err := time.ParseInLocation("2006-01-02 15:04:05", fields[0], time.Local)
-			if err != nil {
-				lg.Fatal(err)
-			}
-			sys, err := strconv.Atoi(fields[1])
-			if err != nil {
-				lg.Fatal(err)
-			}
-			dia, err := strconv.Atoi(fields[2])
-			if err != nil {
-				lg.Fatal(err)
-			}
-			pulse, err := strconv.Atoi(fields[3])
-			if err != nil {
-				lg.Fatal(err)
-			}
-			entry := Entry{
-				Time:  t,
-				Sys:   sys,
-				Dia:   dia,
-				Pulse: pulse,
-				Bank:  bank,
-			}
-			entries = append(entries, entry)
+			avgEntries = append(avgEntries, v)
 		}
-	}
-	fmt.Print("\n")
+		prev = v
 
-	return entries, nil
+	}
+
+	return avgEntries
 }

@@ -7,60 +7,21 @@ import d3 from 'd3';
 require("c3/c3.css");
 require("../style/style.css");
 
-// Scoring rules: (TODO, start at 0, no negative values, use array)
-//
-//  0 = normal
-//  1 = warning high
-//  2 = high
-//  -1 = warning low
-
-var scoreSys = function(v) {
-    if (v > 139) {
-        return 2;
-    }
-    if (v > 119) {
-        return 1;
-    }
-    if (v < 90) {
-        return -1;
-    }
-    return 0;
-}
-
-
-var scoreDia = function(v) {
-    if (v > 89) {
-        return 2;
-    }
-    if (v > 79) {
-        return 1;
-    }
-    if (v < 60) {
-        return -1;
-    }
-    return 0;
-}
-
-var scorePulse = function(v) {
-    if (v > 90) {
-        return 2;
-    }
-    if (v > 80) {
-        return 1;
-    }
-    return 0;
-}
-
 var bpColors = {
-    0: "#888",
-    1: "#000",
-    2: "#f0f",
+    "OK": "#388",
+    "HighWarning": "#000",
+    "LowWarning": "#000",
+    "High": "#f0f",
+    "Low": "#f0f",
 }
 
-var colorBp = function(score){
-    // todo
+var pulseColors = {
+    "OK": "#888",
+    "HighWarning": "#933",
+    "LowWarning": "#933",
+    "High": "#e33",
+    "Low": "#e33",
 }
-
 
 
 var requestData;
@@ -70,36 +31,8 @@ var prepareData = function(data, dataOptions) {
         dataOptions = {};
     }
 
-    if (dataOptions.timeSeries) {
-        var avgData = [];
-        var prevTime;
-        data.forEach(function(v) {
-            if (prevTime == null) {
-                avgData.push(v);
-                prevTime = new Date(v.time);
-                return null;
-            }
-            var curTime = new Date(v.time);
-            if ((curTime-prevTime) < (10 * 60 * 1000)) {
-                var prev = avgData.pop();
-                var newAvg = {
-                    time: v.time,
-                    sys: (prev.sys + v.sys) / 2,
-                    dia: (prev.dia + v.dia) / 2,
-                    pulse: (prev.pulse + v.pulse) / 2,
-                }
-                avgData.push(newAvg);
-                prevTime = curTime;
-                return null;
-            }
-            avgData.push(v)
-            prevTime = curTime;
-            return null;
-        })
-        data = avgData;
-    }
-
     var chartData = {
+        json: [],
         dateStrings: [],
         date: ['date'],
         time: ['time'],
@@ -111,18 +44,18 @@ var prepareData = function(data, dataOptions) {
     data.forEach(function(v){
         var d = moment(v.time).format('YYYY-MM-DD');
         var dt = moment(v.time).format('YYYY-MM-DD HH:mm:ss');
-        var t = moment(v.time).format('HH:mm:ss');
         var mt = moment(v.time);
         var normt = (mt.hour()*3600) + (mt.minute()*60) + (mt.second());
 
         chartData.dateStrings.push(v.time);
         chartData.date.push(dt);
-        chartData.time.push(t);
         chartData.ntime.push(normt);
         chartData.sys.push(v.sys);
         chartData.dia.push(v.dia);
         chartData.pulse.push(v.pulse);
+        chartData.json.push(v);
     });
+    var datalen = data.length;
 
     var componentData = {
         size: {
@@ -138,9 +71,9 @@ var prepareData = function(data, dataOptions) {
             },
             labels: {
                 format: {
-                    sys: function(v){return Math.round(v)},
-                    dia: function(v){return Math.round(v)},
-                    pulse: function(v){return Math.round(v)},
+                    sys: datalen > 70? "": function(v){return v},
+                    dia: datalen > 70? "": function(v){return v},
+                    pulse: datalen > 70? "": function(v){return v},
                 },
             },
             columns: [
@@ -154,10 +87,10 @@ var prepareData = function(data, dataOptions) {
                 // ['sys', 'dia']
             ],
             types: {
-                ntime: 'bar',
-                sys: 'line',
-                dia: 'line',
-                pulse: 'line',
+                ntime: datalen > 200? 'scatter':'bar',
+                sys: datalen > 200? 'scatter':'line',
+                dia: datalen > 200? 'scatter':'line',
+                pulse: datalen > 200? 'scatter':'line',
             },
             names: {
                 ntime: "Time",
@@ -172,49 +105,17 @@ var prepareData = function(data, dataOptions) {
                 ntime: '#f8f8f8',
             },
             color: function (color, d) {
-                // d will be 'id' when called for legends
-                //return d.id && d.id === 'data3' ? d3.rgb(color).darker(d.value / 150) : color;
                 if (d.id) {
-                    if (d.id == 'pulse') {
-                        if (d.value) {
-                            if (d.value > 90) {
-                                return "#e33";
-                            }
+                    if (d.id == 'pulse' && d.value) {
+                        return  pulseColors[chartData.json[d.index].pulseScore];
+                    }
+                    else if (d.id == 'sys' && d.value) {
+                        return  bpColors[chartData.json[d.index].sysScore];
+                    }
+                    else                if (d.id == 'dia' && d.value) {
+                        return  bpColors[chartData.json[d.index].diaScore];
+                    }
 
-                            if (d.value > 80) {
-                                return "#933";
-                            }
-                            return "#888";
-                        }
-                    }
-                    if (d.id == 'sys') {
-                        if (d.value) {
-                            if (d.value > 139) {
-                                return "#f0f";
-                            }
-                            if (d.value > 119) {
-                                return "#000";
-                            }
-                            if (d.value < 90) {
-                                return "#f0f";
-                            }
-                            return "#388";
-                        }
-                    }
-                    if (d.id == 'dia') {
-                        if (d.value) {
-                            if (d.value > 89) {
-                                return "#f0f";
-                            }
-                            if (d.value > 79) {
-                                return "#000";
-                            }
-                            if (d.value < 60) {
-                                return "#f0f";
-                            }
-                            return "#388";
-                        }
-                    }
                 }
                 return color;
             }
@@ -236,11 +137,13 @@ var prepareData = function(data, dataOptions) {
             }
         },
         subchart: {
-            show: true
+            show: false
+        },
+        zoom: {
+            enabled: true,
         },
         axis: {
             y2: {
-                // type: 'category',
                 tick: {
                     format: function(x) {
                         var ts = moment(0).seconds(x);
@@ -253,25 +156,25 @@ var prepareData = function(data, dataOptions) {
                 show: true
             },
             x: {
+                show: datalen > 100? false:true,
                 localtime: true,
                 type: dataOptions.timeSeries ? 'timeseries':'category',
                 tick: {
-                    // fit:  false,
+                    multiline: false,
+                    rotate: 25,
+                    fit:  true,
                     culling: {
-                        max: 14,
+                        max: 16,
                     },
-                    // centered: true,
                     format: function (x) {
                         if (dataOptions.timeSeries) {
                             var dt =  moment(x);
-                            return dt.format('MM-DD HH:mm');
+                            return dt.format('MM-DD  HH:mm');
                         } else {
                             var dt = moment(chartData.dateStrings[x]);
-                            return dt.format('MM-DD HH:mm');
+                            return dt.format('MM-DD  HH:mm');
                         }
                     },
-                    // values: chartData.date
-                    // count: 4,
                 }
             }
         }
@@ -286,10 +189,10 @@ var render = function(componentData){
     React.render(
             <div>
             <button onClick={function(){
-                render(prepareData(requestData));
+                fetchData({timeSeries:false});
             }}>all</button>
             <button onClick={function(){
-                render(prepareData(requestData, {timeSeries:true}));
+                fetchData({timeSeries:true});
             }}>timeseries</button>
 
             <Chart options={componentData} element="dddd"  />
@@ -300,16 +203,25 @@ var render = function(componentData){
 }
 
 
+var fetchData = function(opts){
+    var url ="/json/?dt_min=1900-01-01";
 
-request
-.get('/json/')
-.set('Accept', 'application/json')
-.end(function(err, res){
-    if (!res.ok) {
-        console.log(err);
-        return;
+    if (opts.timeSeries) {
+        url += "&avg_minutes=10";
+    } else {
+        url += "&avg_minutes=0";
     }
+    request
+        .get(url)
+        .set('Accept', 'application/json')
+        .end(function(err, res){
+            if (!res.ok) {
+                console.log(err);
+                return;
+            }
+            requestData = res.body;
+            render(prepareData(requestData, opts));
+        });
+}
 
-    requestData = res.body;
-    render(prepareData(requestData, {timeSeries: true}))
-});
+fetchData({timeSeries:true});

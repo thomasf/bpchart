@@ -3,8 +3,7 @@ package omron
 import (
 	"os"
 
-	"time"
-
+	"github.com/thomasf/bpchart/pkg/omron"
 	"github.com/thomasf/lg"
 	"github.com/truveris/gousb/usb"
 )
@@ -18,21 +17,6 @@ var (
 // unsigned char rawdata[64];
 // unsigned char payload[40*70];
 )
-
-type ByTime []Entry
-
-func (a ByTime) Len() int           { return len(a) }
-func (a ByTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
-func (a ByTime) Less(i, j int) bool { return a[i].Time.Before(a[j].Time) }
-
-// Entry .
-type Entry struct {
-	Time  time.Time `json:"time"`  // recorded time
-	Sys   int       `json:"sys"`   // mmHg
-	Dia   int       `json:"dia"`   // mmHg
-	Pulse int       `json:"pulse"` // beats per minute
-	Bank  int       `json:"bank"`  // bank
-}
 
 var usbdevice *usb.Device
 
@@ -74,8 +58,8 @@ func Close() error {
 // 	return crc;
 // }
 
-func Read(bank int) ([]Entry, error) {
-	var entries []Entry
+func Read(bank int) ([]omron.Entry, error) {
+	var entries []omron.Entry
 
 	const (
 		config      = 0x1
