@@ -4,8 +4,8 @@
 	"package": [
 		{
 			"path": "github.com/boltdb/bolt",
-			"revision": "51f99c862475898df9773747d3accd05a7ca33c1",
-			"revisionTime": "2015-09-21T14:14:00-06:00"
+			"revision": "ee716d1410cb44d1a6b7e59a96a2b2bec23366a9",
+			"revisionTime": "2015-10-21T15:23:03-06:00"
 		},
 		{
 			"path": "github.com/daviddengcn/go-colortext",
@@ -24,8 +24,8 @@
 		},
 		{
 			"path": "github.com/thomasf/lg",
-			"revision": "0576d1ac259b547e3754ac03335f8b65506ef251",
-			"revisionTime": "2015-09-14T12:57:51+02:00"
+			"revision": "961c7d0ad84274812e15c0e44ddee6c2a387fa9b",
+			"revisionTime": "2015-10-06T22:05:27+02:00"
 		},
 		{
 			"path": "github.com/truveris/gousb/usb",

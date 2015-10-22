@@ -51,6 +51,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	ct "github.com/daviddengcn/go-colortext"
 )
 
@@ -1152,6 +1153,14 @@ func (v Verbose) Infoln(args ...interface{}) {
 	}
 }
 
+// InfoSpew is equivalent to the global InfoSpew function, guarded by the value of v.
+// See the documentation of V for usage.
+func (v Verbose) InfoSpew(args ...interface{}) {
+	if v {
+		logging.println(infoLog, spew.Sdump(args...))
+	}
+}
+
 // Infof is equivalent to the global Infof function, guarded by the value of v.
 // See the documentation of V for usage.
 func (v Verbose) Infof(format string, args ...interface{}) {
@@ -1182,6 +1191,12 @@ func Infoln(args ...interface{}) {
 // Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
 func Infof(format string, args ...interface{}) {
 	logging.printf(infoLog, format, args...)
+}
+
+// Infof logs to the INFO log dumping using spew.
+// Arguments are handled in the manner of fmt.Printf; a newline is appended if missing.
+func InfoSpew(args ...interface{}) {
+	logging.println(infoLog, spew.Sdump(args...))
 }
 
 // Warning logs to the WARNING and INFO logs.
