@@ -87,6 +87,7 @@ func fakeImportFromDevice(db *db.DB) error {
 }
 
 func importFromDevice(db *db.DB) error {
+
 	if err := omronread.Open(); err != nil {
 		return err
 	}
@@ -224,7 +225,7 @@ func main() {
 			err = importFromDevice(db)
 		}
 		if err != nil {
-			lg.Fatal(err)
+			lg.Errorln(err)
 		}
 		wg.Done()
 	}()
